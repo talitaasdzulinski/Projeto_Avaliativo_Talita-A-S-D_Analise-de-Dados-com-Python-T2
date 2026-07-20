@@ -1,0 +1,8 @@
+# Dependencias do pipeline de Viagens a Servico (Python 3.10+)
+pandas==2.2.2                    # leitura dos CSVs em blocos (chunks)
+mysql-connector-python==9.0.0    # conexao e carga no MySQL
+gdown==5.2.0                     # download do .zip a partir do Google Drive
+
+# Apenas para a camada Gold (notebook):
+matplotlib==3.9.0                # graficos
+jupyter==1.0.0                   # rodar o notebook 3_analise.ipynb
