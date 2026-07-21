@@ -40,7 +40,7 @@ no banco, e materializa uma camada agregada de negócio.
 | Bibliotecas    | pandas, mysql-connector-python, gdown, matplotlib, jupyter                                                                                                                                                                             |
 | Arquitetura    | Medallion (Raw / Silver / Gold)                                                                                                                                                                                                        |
 | Técnicas      | ETL, leitura em blocos (*chunks*), carga em lote (`executemany`), idempotência, integridade referencial (PK/FK), constraints declarativas (`NOT NULL`, `CHECK`, `UNIQUE`), tabela e VIEW agregadas, visualização de dados |
-| Boas práticas | Credenciais em `.env` (fora do código), `.gitignore`, modularização (`config.py` / `banco.py`), PEP-8                                                                                                                        |
+| Boas práticas | Credenciais em`.env` (fora do código), `.gitignore`, modularização (`config.py` / `banco.py`), PEP-8                                                                                                                        |
 
 ---
 
@@ -67,9 +67,9 @@ no banco, e materializa uma camada agregada de negócio.
 
 | Camada           | O que é                                                                                                                                                                                  | Onde fica                                       |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| **Raw**    | Cópia fiel do CSV. Todas as colunas `VARCHAR`, mantendo vírgulas, datas `DD/MM/AAAA` e formatos originais. Sem constraints, para nada ser rejeitado e o histórico ficar auditável. | `raw_*`                                       |
+| **Raw**    | Cópia fiel do CSV. Todas as colunas`VARCHAR`, mantendo vírgulas, datas `DD/MM/AAAA` e formatos originais. Sem constraints, para nada ser rejeitado e o histórico ficar auditável. | `raw_*`                                       |
 | **Silver** | Dados limpos e tipados (`DECIMAL`, `DATE`, `INT`), com PK, FK e 2 constraints extras por tabela.                                                                                    | `silver_*`                                    |
-| **Gold**   | Métricas de negócio agregadas por `JOIN` + `GROUP BY`, materializadas como tabela e como VIEW.                                                                                       | `gold_orgao_gastos`, `vw_gold_orgao_gastos` |
+| **Gold**   | Métricas de negócio agregadas por`JOIN` + `GROUP BY`, materializadas como tabela e como VIEW.                                                                                       | `gold_orgao_gastos`, `vw_gold_orgao_gastos` |
 
 ### Modelo relacional da Silver
 
@@ -162,10 +162,10 @@ ser executados quantas vezes for preciso sem duplicar registros.
 | Idempotência da Raw    | `TRUNCATE` antes da carga                                  | Não há FK apontando para as tabelas Raw.                                                                                              |
 | Idempotência da Silver | `DELETE` na ordem filhas → principal                      | `TRUNCATE` não é permitido em tabela alvo de `FOREIGN KEY`.                                                                       |
 | Campos vazios           | `NULLIF(TRIM(coluna), '')` → `NULL`                     | Distingue "não informado" de zero. Resolve as 664 datas de emissão em branco da tabela de passagens.                                  |
-| Integridade nas filhas  | `WHERE id_viagem IN (SELECT id_viagem FROM silver_viagem)` | Garante que nenhum registro órfão viole a `FOREIGN KEY`.                                                                             |
-| "Destino" na pergunta 2 | `destino_cidade/destino_uf` da tabela de trechos           | A coluna `destinos` da viagem é texto livre com múltiplos destinos na mesma célula.                                                 |
+| Integridade nas filhas  | `WHERE id_viagem IN (SELECT id_viagem FROM silver_viagem)` | Garante que nenhum registro órfão viole a`FOREIGN KEY`.                                                                             |
+| "Destino" na pergunta 2 | `destino_cidade/destino_uf` da tabela de trechos           | A coluna`destinos` da viagem é texto livre, com vários destinos na mesma célula.                                                   |
 | Corte na pergunta 2     | `HAVING COUNT(*) >= 30`                                    | Sem o corte, o ranking de custo médio seria dominado por destinos com uma única viagem cara — um outlier, não um padrão.           |
-| Categoria `Inválido`  | Mantida na Silver                                            | A Silver preserva o que existe na origem; medir o volume dessa categoria é informação útil para o órgão corrigir o preenchimento. |
+| Categoria`Inválido`  | Mantida na Silver                                            | A Silver preserva o que existe na origem; medir o volume dessa categoria é informação útil para o órgão corrigir o preenchimento. |
 
 ---
 
@@ -192,7 +192,7 @@ Todas em `scripts/3_analise.ipynb`, cada uma com consulta SQL, tabela e gráfico
 
 **O gasto é muito concentrado.** Os cinco órgãos que mais gastaram somam
 R$ 844,4 milhões, e só o Ministério da Justiça e Segurança Pública responde por
-R$ 486,9 milhões disso — quase 58% do total dos cinco, em 75.742 viagens. Auditar
+R$ 486,9 milhões disso, quase 58% do total dos cinco, em 75.742 viagens. Auditar
 um único órgão já cobriria mais da metade do dinheiro.
 
 ![Top 5 órgãos por custo total](docs/q1_orgaos_custo_total.png)
@@ -205,23 +205,18 @@ trecho por viagem, enquanto o DF tem 79.962 trechos em 72.297 viagens, pouco mai
 de 1. São Paulo costuma ser escala; Brasília costuma ser o destino final.
 
 **A viagem mais longa tem custo zero.** Durou 384 dias, do Ministério da Previdência
-Social, contra uma média geral de 8,1 dias — e o valor total registrado é R$ 0,00.
-Ou é erro de preenchimento na origem, ou a viagem foi custeada fora do sistema. Foi
-o achado que mais me chamou atenção, e ele só ficou visível porque a camada Silver
+Social, contra uma média geral de 8,1 dias e o valor total registrado é R$ 0,00.
+Ou é erro de preenchimento na origem, ou a viagem foi custeada fora do sistema. É
+o achado que chama atenção, e ele só ficou visível porque a camada Silver
 tipou a data e permitiu calcular a duração.
 
-**Diárias pesam mais que passagens, nos dois sentidos.** Diárias lideram tanto o
-valor médio (R$ 2.078,28 por pagamento) quanto o total (R$ 834,4 milhões), contra
-R$ 355,0 milhões de passagens. Faz sentido quando se olha o modal: veículo oficial
-responde por 50,6% dos trechos e aéreo por 30,5%. Boa parte do deslocamento é
-terrestre, então o custo migra da passagem para a diária.
+**Diárias pesam mais que passagens, nos dois sentidos.** Diárias lideram tanto o valor médio (R$ 2.078,28 por pagamento) quanto o total (R$ 834,4 milhões), contra R$ 355,0 milhões de passagens. Faz sentido quando se olha o modal: veículo oficial responde por 50,6% dos trechos e aéreo por 30,5%. Boa parte do deslocamento é terrestre, então o custo migra da passagem para a diária.
 
 ![Meios de transporte usados nos trechos](docs/q5_meio_transporte.png)
 
 **Um alerta de qualidade da base.** 3,5% dos trechos (26.659) têm meio de transporte
-registrado como "Inválido". Preferi não filtrar: para o órgão, saber o tamanho desse
-buraco de preenchimento é mais útil do que uma tabela artificialmente limpa.
-
+registrado como "Inválido". Optei por não filtrar: para o órgão, saber o tamanho desse
+buraco de preenchimento é mais útil do que a tabela limpa.
 
 ---
 
@@ -230,13 +225,10 @@ buraco de preenchimento é mais útil do que uma tabela artificialmente limpa.
 - **Carga incremental** por competência (mês), em vez de recarregar a base inteira a cada execução.
 - **Testes automatizados de qualidade** na passagem Raw → Silver (contagem de linhas, taxa de nulos, faixas de valores), falhando o pipeline quando um limite for violado.
 - **Índices** nas colunas usadas nos `JOIN` e nos `GROUP BY` (`nome_orgao_superior`, `destino_uf`), para acelerar a camada Gold.
-- **Orquestração** com cron ou Airflow, com registro de execução e alerta em caso de falha.
 - **Particionamento** das tabelas Raw por mês de referência, facilitando o descarte de histórico antigo.
 - **Dashboard** (Power BI, Metabase ou Streamlit) lendo a camada Gold, para o usuário final não depender do notebook.
 
-
 ---
-
 
 ## Autora
 
